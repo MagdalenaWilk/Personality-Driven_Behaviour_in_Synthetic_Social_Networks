@@ -2,17 +2,11 @@ import sqlite3
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import chi2_contingency
 import networkx as nx
 
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-import igraph as ig
-import leidenalg as la
-
-from metrics import cramers_v_matrix
 
 
 PROFESSION_MAP = {
@@ -184,8 +178,8 @@ def load_data_and_describe_network(connection):
         f"Total actions: {n_actions}\n"
         f"Follow actions: {n_follow}\n"
         f"Unfollow actions: {n_unfollow}\n"
-        f"Number od rounds: {n_rounds}\n"
-        f"Number of posts: {n_posts}\n"
+        f"Number of rounds: {n_rounds['COUNT(DISTINCT day)'].iloc[0]}\n"
+        f"Number of posts: {n_posts['COUNT(DISTINCT id)'].iloc[0]}\n"
     )
 
     return users, follow, posts
@@ -243,28 +237,36 @@ def map_professions(df, map=PROFESSION_MAP):
     df['profession'] = df['profession'].map(PROFESSION_MAP)
 
 
-def create_persona_df(df,  feature_cols=['openness', 'conscientiousness', 'extroversion', 'agreeableness',
-                'neuroticism']):
+def create_persona_df(df,  professions_map=PROFESSION_MAP):
     """
-    Creates a persona DataFrame. Encode age.
-    Creates encoded features DataFrame with selected features. Display size of encoded features DF.
-    Returns both personae and encoded features DataFrame.
+    Creates a persona DataFrame. Encode age. Map professions using map.
+    Returns personae DataFrame.
     """
     cols = ['id', 'openness', 'conscientiousness', 'extroversion', 'agreeableness', 'neuroticism',
             'age', 'profession', 'gender', 'leaning', 'education_level']
 
     personae = df[cols].copy()
 
-    if 'age' in cols:
-        personae['age'] = personae['age'].astype(int)
-        personae['age'] = personae['age'].apply(encode_age)
+    personae['age'] = personae['age'].astype(int)
+    personae['age'] = personae['age'].apply(encode_age)
 
+    map_professions(personae, map=professions_map)
+
+    return personae
+
+
+def create_persona_features_df(df, feature_cols=['openness', 'conscientiousness', 'extroversion', 'agreeableness', 'neuroticism']):
+    """
+    Creates encoded features DataFrame with selected features. Display size of encoded features DF.
+    Returns encoded features DataFrame.
+    """
     features_df = df[feature_cols].copy()
     features_df_encoded = pd.get_dummies(features_df, columns=feature_cols, drop_first=False)
 
     print(f"Features encoded size: {features_df_encoded.shape}")
 
-    return personae, features_df_encoded
+    return features_df_encoded
+
 
 
 def encode_age(age):
@@ -280,14 +282,14 @@ def search_best_number_of_personae(features_encoded):
     """
     scores = []
 
-    for k in range(2, 16):
+    for k in range(2, 10):
         kmeans = KMeans(n_clusters=k, random_state=42)
         labels = kmeans.fit_predict(features_encoded)
         score = silhouette_score(features_encoded, labels)
         scores.append(score)
         print(f"k={k} silhouette={score:.4f}")
 
-    plt.plot(range(2, 16), scores)
+    plt.plot(range(2, 10), scores)
     plt.xlabel("Number of clusters")
     plt.ylabel("Silhouette score")
     plt.show()
@@ -299,6 +301,7 @@ def create_personae(k, df, features_encoded):
     Returns df updated with persona label.
     :param k: number of clusters
     :param df: any df with users, e.g. personae
+    :param features_encoded: encoded features DataFrame
     :return: df with new column 'persona'
     """
     kmeans = KMeans(n_clusters=k, random_state=42)

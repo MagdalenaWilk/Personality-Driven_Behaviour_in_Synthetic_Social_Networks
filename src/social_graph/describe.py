@@ -4,25 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import chi2_contingency
-import networkx as nx
 
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-
-import igraph as ig
-import leidenalg as la
 
 def describe_personae(df, feature_cols=['openness', 'conscientiousness', 'extroversion', 'agreeableness', 'neuroticism']):
     """
     Creates and returns crosstab table features vs. persona.
     """
-    describtion = pd.crosstab(df['persona'], df[feature_cols[0]], normalize='index')
+    description = pd.crosstab(df['persona'], df[feature_cols[0]], normalize='index')
 
     for i in range(1, len(feature_cols)):
         tab = pd.crosstab(df['persona'], df[feature_cols[i]], normalize='index')
-        describtion.join(tab, on='persona')
+        description = description.join(tab, on='persona')
 
-    return describtion
+    return description
 
 
 def persona_significance(df, feature_cols=['openness', 'conscientiousness', 'extroversion', 'agreeableness', 'neuroticism']):

@@ -7,9 +7,6 @@ from scipy.stats import chi2_contingency
 from scipy.stats import kruskal
 import networkx as nx
 
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
-
 import igraph as ig
 import leidenalg as la
 
@@ -47,20 +44,22 @@ def cramers_v_matrix(df, label=""):
     return cv_matrix
 
 
-def calculate_global_metrics(G, G_lcc):
+def calculate_global_metrics(G, G_lcc, label='Simulation'):
     """
     Calculates global metrics for graph and prints them. Some metrics require connected graph.
     :param G: Graph
     :param G_lcc: Largest connected component of G
+    :return: table of global metrics
     """
     avg_deg = sum(dict(G.degree()).values()) / G.number_of_nodes()
     dens = nx.density(G)
 
     # largest connected component -> diameter !!!
     diam = nx.diameter(G_lcc.to_undirected())  # Longest shortest path between any two nodes
-    print(f"Mean degree: {avg_deg:.2f}, Density: {dens:.4f}, Diameter: {diam}")
+    print(f"Mean degree: {avg_deg:.2f}\nDensity: {dens:.4f}\nDiameter: {diam}")
 
-    print(f"Avg. shortest path: {nx.average_shortest_path_length(G_lcc.to_undirected())}")
+    avg_short_path = nx.average_shortest_path_length(G_lcc.to_undirected())
+    print(f"Avg. shortest path: {avg_short_path:.3f}")
 
     ig_graph = ig.Graph.TupleList(G.edges(), directed=True)
     partition = la.find_partition(ig_graph, partition_type=la.ModularityVertexPartition)
@@ -69,6 +68,13 @@ def calculate_global_metrics(G, G_lcc):
 
     assortativity = nx.attribute_assortativity_coefficient(G, 'persona')
     print("Persona assortativity:", assortativity)
+
+    metrics = pd.DataFrame({
+        'Metric': ['Mean degree', 'Density', 'Diameter', 'Avg. shortest path', 'Modularity', 'Persona assortativity'],
+        label: [avg_deg, dens, diam, avg_short_path, modularity, assortativity]
+    })
+
+    return metrics
 
 
 
@@ -130,5 +136,6 @@ def statistical_difference_check(metrics):
             for p in metrics['persona'].unique()
         ]
 
-        print(f"{col} statistics:")
-        kruskal(*groups)
+        stat_diff = kruskal(*groups)
+        print(f"{col} statistics: p = {stat_diff.pvalue:.4f}")
+
