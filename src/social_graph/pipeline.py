@@ -36,7 +36,7 @@ def run_simulation_preprocessing(conn, label='Simulation', feature_cols = FEATUR
    return personae, features_df, follow
 
 
-# These functions are separated, because we want to manually set best number of personae
+# These functions are separated, because we want to manually set the best number of personae
 
 
 def cluster_persona_and_analyse(persona_df, features_df, k, label='Simulation', feature_cols = FEATURE_COLS):
@@ -78,14 +78,12 @@ def build_graph_and_analyse(follow, persona_dict, label='Simulation'):
     nx.set_node_attributes(G_lcc, persona_dict, "persona")
 
     print("\nGlobal metrics ...\n")
-    global_metrics = calculate_global_metrics(G, G_lcc, label=label)
+    global_metrics = calculate_global_metrics(G, G_lcc, label=label).set_index('Metric')
 
     print("\nLocal metrics ...\n")
     local_metrics, summary = calculate_local_metrics(G_lcc)
     if label != 'Simulation':
         summary['Simulation'] = label
-
-    summary = summary.set_index('Metric')
 
     print("\nStatistical check (metrics vs. persona) ...\n")
     statistical_difference_check(local_metrics)

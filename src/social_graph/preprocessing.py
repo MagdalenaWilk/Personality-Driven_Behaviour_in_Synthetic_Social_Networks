@@ -309,7 +309,7 @@ def create_personae(k, df, features_encoded):
 
     persona_map = {}
     for i in range(k):
-        persona_map[i] = f"Persona_{i}"
+        persona_map[i] = f"Persona_{i+1}"
 
     df['persona'] = df['persona'].map(persona_map)
 

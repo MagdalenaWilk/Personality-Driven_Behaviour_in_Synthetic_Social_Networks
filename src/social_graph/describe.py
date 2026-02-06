@@ -30,3 +30,23 @@ def persona_significance(df, feature_cols=['openness', 'conscientiousness', 'ext
         chi2, p, dof, expected = chi2_contingency(table)
 
         print(f"{col}: {p}")
+
+
+def compare_persona_across_simulations(summaries, num_persona):
+    """
+    Compares persona across simulations. Creates summary table for each persona and returns them.
+    """
+    persona_tables = []
+
+    for i in range(num_persona):
+        tables = []
+
+        for summary in summaries:
+            tables.append(summary.loc[f"Persona_{i+1}"])
+
+        table = pd.concat(tables, axis=1)
+        persona_tables.append(table)
+
+    print(f"Number of persona tables: {len(persona_tables)}")
+
+    return persona_tables
