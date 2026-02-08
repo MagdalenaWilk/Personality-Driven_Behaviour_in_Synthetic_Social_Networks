@@ -1,6 +1,7 @@
 import sqlite3
 import pandas as pd
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import chi2_contingency
@@ -111,6 +112,7 @@ def calculate_local_metrics(G_lcc):
         mean_total_degree=('total_degree', 'mean'),
         mean_betweenness=('betweenness', 'mean'),
         median_betweenness=('betweenness', 'median'),
+        mean_eigenvector=('eigenvector', 'mean'),
         mean_pagerank=('pagerank', 'mean'),
         mean_kcore=('kcore', 'mean')
     )
@@ -138,4 +140,166 @@ def statistical_difference_check(metrics):
 
         stat_diff = kruskal(*groups)
         print(f"{col} statistics: p = {stat_diff.pvalue:.4f}")
+
+
+
+def persona_permutation_test(G, persona_summary, n_perm=100, seed=None):
+    """
+    Null model validation function for persona.
+    Calculates local metrics for permutated persona attributes.
+    Keeps network structure unchanged.
+    Returns df with metrics distributions across permutations.
+    """
+    rng = np.random.default_rng(seed)
+
+    nodes = list(G.nodes())
+    original_personas = np.array([G.nodes[n]["persona"] for n in nodes])
+
+    null_distributions = {
+        metric: {p: [] for p in persona_summary.index}
+        for metric in persona_summary.columns
+    }
+
+    for _ in range(n_perm):
+        permuted = rng.permutation(original_personas)
+        nx.set_node_attributes(G, dict(zip(nodes, permuted)), "persona")
+
+        _, perm_stats = calculate_local_metrics(G)
+
+        for metric in perm_stats.columns:
+            for persona in perm_stats.index:
+                null_distributions[metric][persona].append(
+                    perm_stats.loc[persona, metric]
+                )
+
+    nx.set_node_attributes(G, dict(zip(nodes, original_personas)), "persona")
+
+    return null_distributions
+
+
+def permutation_pvalues(persona_summary, null_dist):
+    """
+    Calculates p-value for null distribution across permutations.
+    Returns df with p-values for metrics vs persona.
+    """
+    pvals = pd.DataFrame(index=persona_summary.index, columns=persona_summary.columns)
+
+    for metric in persona_summary.columns:
+        for persona in persona_summary.index:
+            obs = persona_summary.loc[persona, metric]
+            null = np.array(null_dist[metric][persona])
+
+            pvals.loc[persona, metric] = (
+                np.sum(null >= obs) + 1
+            ) / (len(null) + 1)
+
+    return pvals.astype(float)
+
+
+
+def permutation_zscores(persona_summary, null_dist):
+    """
+    Calculates z-scores for between observed values and null distribution across permutations.
+    Returns df with z_scores for metrics vs persona.
+    """
+    zscores = pd.DataFrame(
+        index=persona_summary.index,
+        columns=persona_summary.columns,
+        dtype=float
+    )
+
+    for persona in persona_summary.index:
+        for metric in persona_summary.columns:
+            obs = pd.to_numeric(
+                persona_summary.loc[persona, metric],
+                errors='coerce'
+            )
+
+            null = pd.to_numeric(
+                null_dist[metric][persona],
+                errors='coerce'
+            )
+
+            if len(null) < 5 or np.isnan(obs):
+                zscores.loc[persona, metric] = np.nan
+                continue
+
+            mu = null.mean()
+            sigma = null.std(ddof=1)
+
+            if sigma == 0:
+                zscores.loc[persona, metric] = 0.0
+            else:
+                zscores.loc[persona, metric] = (obs - mu) / sigma
+
+    return zscores
+
+
+
+def persona_metric_stability(persona_tables):
+    """
+    Calculates mean, std, and cv for metrics for personas across simulations.
+    Returns df with results.
+    """
+    rows = []
+
+    for persona, df in persona_tables.items():
+        for metric in df.index:
+            vals = df.loc[metric].values
+
+            rows.append({
+                'persona': persona,
+                'metric': metric,
+                'mean': np.mean(vals),
+                'std': np.std(vals, ddof=1),
+                'cv': np.std(vals, ddof=1) / np.mean(vals)
+            })
+
+    return pd.DataFrame(rows)
+
+
+def persona_rank_stability(persona_tables):
+    """
+    Creates ranking of metrics-personas across simulations.
+    """
+    rankings = []
+
+    metrics = next(iter(persona_tables.values())).index
+    simulations = next(iter(persona_tables.values())).columns
+
+    for metric in metrics:
+        for sim in simulations:
+            values = {
+                persona: persona_tables[persona].loc[metric, sim]
+                for persona in persona_tables
+            }
+
+            ranks = (
+                pd.Series(values)
+                .rank(ascending=False)
+                .astype(int)
+            )
+
+            for persona, rank in ranks.items():
+                rankings.append({
+                    'persona': persona,
+                    'metric': metric,
+                    'simulation': sim,
+                    'rank': rank
+                })
+
+    return pd.DataFrame(rankings)
+
+
+def rank_consistency(rank_df):
+    """
+    Calculates mean and standard deviation for rank of each metric-persona.
+    """
+    return (
+        rank_df
+        .groupby(['persona', 'metric'])['rank']
+        .agg(['mean', 'std'])
+        .rename(columns={'std': 'rank_std'})
+    )
+
 

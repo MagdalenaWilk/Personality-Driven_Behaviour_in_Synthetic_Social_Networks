@@ -36,16 +36,18 @@ def compare_persona_across_simulations(summaries, num_persona):
     """
     Compares persona across simulations. Creates summary table for each persona and returns them.
     """
-    persona_tables = []
+    persona_tables = {}
 
     for i in range(num_persona):
         tables = []
 
         for summary in summaries:
-            tables.append(summary.loc[f"Persona_{i+1}"])
+            sim_name = summary.loc['Persona_1', 'Simulation']
+            tab = summary.loc[f"Persona_{i+1}"].rename(sim_name)
+            tables.append(tab)
 
         table = pd.concat(tables, axis=1)
-        persona_tables.append(table)
+        persona_tables[f"Persona_{i+1}"] = table.drop('Simulation', axis=0)
 
     print(f"Number of persona tables: {len(persona_tables)}")
 
