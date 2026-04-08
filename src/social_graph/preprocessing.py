@@ -193,7 +193,22 @@ def create_graph(df):
     If graph is not connected, it creates also the biggest connected component.
     It returns created graphs.
     """
-    G = nx.from_pandas_edgelist(df, source="follower_id", target="user_id", create_using=nx.DiGraph())
+    #G = nx.from_pandas_edgelist(df, source="follower_id", target="user_id", create_using=nx.DiGraph())
+
+    G = nx.DiGraph()
+
+    df = df.sort_values(by=['id'])
+
+    for _, row in df.iterrows():
+        u = row['follower_id']
+        v = row['user_id']
+
+        if row['action'] == 'follow':
+            G.add_edge(u, v)
+
+        elif row['action'] == 'unfollow':
+            if G.has_edge(u, v):
+                G.remove_edge(u, v)
 
     print(f"Number of nodes: {len(G)}")
     print(f"Number of edges: {G.size()}")
@@ -316,3 +331,19 @@ def create_personae(k, df, features_encoded):
     print(df['persona'].value_counts())
 
     return df
+
+
+def add_persona_to_follow(follow_df, personas_df):
+    """
+    Returns follows merged with persona type.
+    """
+    follow_df = follow_df.drop(columns=['id'], inplace=False)
+    follow_df.drop_duplicates(inplace=True)
+
+    personas_df = personas_df[['id', 'persona']].reset_index()
+    personas_df = personas_df.rename(columns={'id': 'follower_id'}, inplace=False)
+
+    follow_df = follow_df.merge(personas_df, on='follower_id', how='left')
+    follow_df.drop(columns=['index'], inplace=True)
+
+    return follow_df
