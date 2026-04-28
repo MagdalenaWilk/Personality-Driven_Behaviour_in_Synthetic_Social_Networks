@@ -337,7 +337,7 @@ def add_persona_to_follow(follow_df, personas_df):
     """
     Returns follows merged with persona type.
     """
-    follow_df = follow_df.drop(columns=['id'], inplace=False)
+    # follow_df = follow_df.drop(columns=['id'], inplace=False)
     follow_df.drop_duplicates(inplace=True)
 
     personas_df = personas_df[['id', 'persona']].reset_index()
