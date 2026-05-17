@@ -4,7 +4,8 @@ import requests
 app = Flask(__name__)
 
 PLGRID_API_KEY = "plg-rLA29o1RwkSVP8zqBQDoSlz4PZdjhem0yP-rpc3v6Mg"
-PLGRID_MODEL = "CYFRAGOVPL/Llama-PLLuM-70B-chat-250801"
+# PLGRID_MODEL = "CYFRAGOVPL/Llama-PLLuM-70B-chat-250801"
+PLGRID_MODEL = "google/gemma-4-31B"
 
 PLGRID_ENDPOINT = "https://llmlab.plgrid.pl/api/v1/chat/completions"
 
@@ -38,7 +39,6 @@ def chat():
         headers=headers
     )
 
-    print("STATUS:", response.status_code)
     print("TEXT:", response.text[:500])
 
     # Parse JSON safely
@@ -100,4 +100,4 @@ def models():
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8000, threaded=True)
