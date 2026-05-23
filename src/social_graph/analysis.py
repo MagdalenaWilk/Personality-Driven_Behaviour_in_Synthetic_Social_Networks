@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 import nltk
 nltk.download('vader_lexicon')
@@ -77,14 +78,128 @@ def posts_analysis(posts):
         default='Negative'
     )
 
+    posts['word_count'] = posts['tweet'].apply(lambda x: len(x.split(' ')))
+
     sentiment_summary = posts.groupby('user_id').agg(
         positive_posts=('polarity_category', lambda x: (x == 'Positive').sum()),
         neutral_posts=('polarity_category', lambda x: (x == 'Neutral').sum()),
         negative_posts=('polarity_category', lambda x: (x == 'Negative').sum()),
-        total_posts=('polarity_category', 'count')
+        total_posts=('polarity_category', 'count'),
+        avg_word_count=('word_count', 'mean')
     ).reset_index()
     sentiment_summary = pd.DataFrame(sentiment_summary)
-    sentiment_summary['persona'] = posts['persona']
+    sentiment_summary = sentiment_summary.merge(posts[['user_id', 'persona']].drop_duplicates(inplace=False), on=['user_id'])
 
     return sentiment_summary
 
+
+
+def comments_analysis(comments):
+    """
+    Reddit comments analysis.
+    """
+
+    sia = SentimentIntensityAnalyzer()
+
+    # --- text length ---
+    comments['word_count'] = (
+        comments['body']
+        .fillna('')
+        .astype(str)
+        .str.split()
+        .str.len()
+    )
+
+    # --- sentiment polarity ---
+    comments['polarity'] = comments['body'].apply(
+        lambda x: sia.polarity_scores(str(x))['compound']
+    )
+
+    # --- sentiment categories ---
+    conditions = [
+        comments['polarity'] > 0.05,
+        comments['polarity'].between(-0.05, 0.05)
+    ]
+
+    choices = ['Positive', 'Neutral']
+
+    comments['polarity_category'] = np.select(
+        conditions,
+        choices,
+        default='Negative'
+    )
+
+    # --- aggregate per author ---
+    features = (
+        comments.groupby('author')
+        .agg(
+            # activity
+            total_comments=('body', 'count'),
+
+            # sentiment counts
+            positive_comments=(
+                'polarity_category',
+                lambda x: (x == 'Positive').sum()
+            ),
+
+            neutral_comments=(
+                'polarity_category',
+                lambda x: (x == 'Neutral').sum()
+            ),
+
+            negative_comments=(
+                'polarity_category',
+                lambda x: (x == 'Negative').sum()
+            ),
+
+            # sentiment ratios
+            positive_ratio=(
+                'polarity_category',
+                lambda x: (x == 'Positive').mean()
+            ),
+
+            neutral_ratio=(
+                'polarity_category',
+                lambda x: (x == 'Neutral').mean()
+            ),
+
+            negative_ratio=(
+                'polarity_category',
+                lambda x: (x == 'Negative').mean()
+            ),
+
+            # polarity statistics
+            avg_polarity=('polarity', 'mean'),
+            polarity_std=('polarity', 'std'),
+
+            # text features
+            avg_word_count=('word_count', 'mean')
+        )
+        .reset_index()
+    )
+
+    return features
+
+
+def plot_pca(plot_df, colour_by=None, title='PCA'):
+    # unique interests
+    features = plot_df[colour_by].unique()
+    # assign colors
+    cmap = plt.cm.get_cmap('tab20', len(features))
+
+    plt.figure(figsize=(8, 6))
+    for i, colour in enumerate(features):
+        subset = plot_df[plot_df[colour_by] == colour]
+
+        plt.scatter(
+            subset['PC1'],
+            subset['PC2'],
+            label=colour,
+            alpha=0.7
+        )
+
+    plt.xlabel('PC1')
+    plt.ylabel('PC2')
+    plt.title(title)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.show()
