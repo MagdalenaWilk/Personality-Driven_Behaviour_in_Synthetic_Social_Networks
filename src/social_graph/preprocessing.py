@@ -165,13 +165,17 @@ def load_data_and_describe_network(connection):
         'ne': 'neuroticism'
     })
 
+    posts = posts.drop_duplicates(
+        subset=['user_id', 'tweet', 'round']
+    )
+
     n_users = users["id"].nunique()
     n_actions = len(follow)
     n_follow = (follow["action"] == "follow").sum()
     n_unfollow = (follow["action"] == "unfollow").sum()
 
     n_rounds = pd.read_sql("SELECT COUNT(DISTINCT day) FROM rounds;", connection)
-    n_posts = pd.read_sql("SELECT COUNT(DISTINCT id) FROM post;", connection)
+    n_posts = len(posts)
 
     print(
         f"Number of users: {n_users}\n"
@@ -179,7 +183,7 @@ def load_data_and_describe_network(connection):
         f"Follow actions: {n_follow}\n"
         f"Unfollow actions: {n_unfollow}\n"
         f"Number of rounds: {n_rounds['COUNT(DISTINCT day)'].iloc[0]}\n"
-        f"Number of posts: {n_posts['COUNT(DISTINCT id)'].iloc[0]}\n"
+        f"Number of posts: {n_posts}\n"
     )
 
     return users, follow, posts

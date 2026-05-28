@@ -63,7 +63,7 @@ def calculate_global_metrics(G, G_lcc, label='Simulation'):
     print(f"Avg. shortest path: {avg_short_path:.3f}")
 
     ig_graph = ig.Graph.TupleList(G.edges(), directed=True)
-    partition = la.find_partition(ig_graph, partition_type=la.ModularityVertexPartition)
+    partition = la.find_partition(ig_graph, partition_type=la.ModularityVertexPartition, seed=42)
     modularity = partition.modularity
     print(f"Modularity score: {modularity:.3f}")
 
@@ -111,7 +111,7 @@ def calculate_local_metrics(G_lcc):
         mean_out_degree=('out_degree', 'mean'),
         mean_total_degree=('total_degree', 'mean'),
         mean_betweenness=('betweenness', 'mean'),
-        median_betweenness=('betweenness', 'median'),
+        # median_betweenness=('betweenness', 'median'),
         mean_eigenvector=('eigenvector', 'mean'),
         mean_pagerank=('pagerank', 'mean'),
         mean_kcore=('kcore', 'mean')

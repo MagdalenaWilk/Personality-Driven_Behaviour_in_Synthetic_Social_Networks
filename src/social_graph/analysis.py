@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import kruskal
 
 import nltk
 nltk.download('vader_lexicon')
@@ -92,6 +93,73 @@ def posts_analysis(posts):
 
     return sentiment_summary
 
+
+def add_behavioral_features_to_persona_summary(conn, summary, persona_df, simulation_days=60):
+
+    # POST FEATURES
+    posts = pd.read_sql("SELECT * FROM post", conn)
+    posts = posts.drop_duplicates(
+        subset=['user_id', 'tweet', 'round']
+    )
+
+    personas = persona_df[['id', 'persona']].rename(columns={'id': 'user_id'})
+    posts = posts.merge(personas, on='user_id', how='left')
+
+    sentiment_summary = posts_analysis(posts)
+
+    sentiment_summary['neutral_posts_ratio'] = (
+            sentiment_summary['neutral_posts'] /
+            sentiment_summary['total_posts']
+    )
+
+    sentiment_summary['negative_posts_ratio'] = (
+            sentiment_summary['negative_posts'] /
+            sentiment_summary['total_posts']
+    )
+
+    sentiment_summary['posts_per_day'] = sentiment_summary['total_posts'] / simulation_days
+
+    # LIFESPAN FEATURES
+    follow = pd.read_sql("SELECT * FROM follow", conn)
+    personas = personas.rename(columns={'user_id': 'follower_id'})
+    follow = follow.merge(personas, on='follower_id', how='left')
+
+    lifespan = lifespan_analysis(follow, agg_by='follower_id')
+    lifespan.rename(columns={'follower_id': 'user_id'}, inplace=True)
+
+    behavior_summary = lifespan.merge(sentiment_summary, on='user_id', how='left')
+
+    # statistical significance check
+    cols = ['posts_per_day', 'avg_word_count', 'neutral_posts_ratio', 'negative_posts_ratio', 'survival_rate', 'lifespan_mean']
+
+    behavior_summary = behavior_summary[cols + ['persona', 'user_id']]
+
+    for col in cols:
+        groups = [
+            behavior_summary[behavior_summary['persona'] == p][col]
+            for p in behavior_summary['persona'].unique()
+        ]
+
+        stat_diff = kruskal(*groups)
+        print(f"{col} statistics: p = {stat_diff.pvalue:.4f}")
+
+    behavior_summary = behavior_summary.groupby('persona').agg(
+        posts_per_day=('posts_per_day', 'mean'),
+        avg_word_count=('avg_word_count', 'mean'),
+        neutral_posts_ratio=('neutral_posts_ratio', 'mean'),
+        negative_posts_ratio=('negative_posts_ratio', 'mean'),
+        survival_rate=('survival_rate', 'mean'),
+        lifespan_mean=('lifespan_mean', 'mean')
+    ).reset_index()
+
+    # final df
+    final_summary = summary.merge(
+        behavior_summary,
+        on='persona',
+        how='left'
+    ).set_index('persona')
+
+    return final_summary
 
 
 def comments_analysis(comments):
