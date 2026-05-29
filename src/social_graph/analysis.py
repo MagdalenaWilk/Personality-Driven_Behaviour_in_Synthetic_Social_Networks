@@ -133,6 +133,7 @@ def add_behavioral_features_to_persona_summary(conn, summary, persona_df, simula
     cols = ['posts_per_day', 'avg_word_count', 'neutral_posts_ratio', 'negative_posts_ratio', 'survival_rate', 'lifespan_mean']
 
     behavior_summary = behavior_summary[cols + ['persona', 'user_id']]
+    behavior_summary['lifespan_mean'].fillna(0, inplace=True)
 
     for col in cols:
         groups = [
