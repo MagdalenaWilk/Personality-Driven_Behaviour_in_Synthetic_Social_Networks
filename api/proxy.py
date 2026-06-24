@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 import requests
+import re
 
 app = Flask(__name__)
 
 PLGRID_API_KEY = "plg-rLA29o1RwkSVP8zqBQDoSlz4PZdjhem0yP-rpc3v6Mg"
 # PLGRID_MODEL = "CYFRAGOVPL/Llama-PLLuM-70B-chat-250801"
-PLGRID_MODEL = "google/gemma-4-31B"
+PLGRID_MODEL = "Qwen/Qwen3-VL-8B-Instruct"
 
 PLGRID_ENDPOINT = "https://llmlab.plgrid.pl/api/v1/chat/completions"
 
@@ -21,11 +22,25 @@ def chat():
     payload = {
         "model": PLGRID_MODEL,
         "messages": incoming["messages"],
-        "max_tokens": incoming.get("max_tokens", 200),
+        "max_tokens": incoming.get("max_tokens", 300),
         "temperature": temperature,
         "top_p": incoming.get("top_p", 1),
-        "stream": False
+        "stream": False,
+        "chat_template_kwargs": {
+            "enable_thinking": False
+        }
     }
+    # payload = {
+    #     "model": "Qwen/Qwen3-VL-8B-Instruct", #"zai-org/GLM-4.7-Flash"
+    #     "messages": [
+    #         {
+    #             "role": "user",
+    #             "content": "Write only YES or NO. Do not explain. Question: Is the sky blue?"
+    #         }
+    #     ],
+    #     "temperature": 0,
+    #     "max_tokens": 5
+    # }
 
     headers = {
         "accept": "application/json",
@@ -39,7 +54,7 @@ def chat():
         headers=headers
     )
 
-    print("TEXT:", response.text[:500])
+    print("TEXT:", response.text)
 
     # Parse JSON safely
     try:
@@ -56,8 +71,44 @@ def chat():
         return jsonify(plgrid_response), response.status_code
 
     # Extract content safely
+
+    # Extract content safely
     try:
-        content = plgrid_response["choices"][0]["message"]["content"]
+        message = plgrid_response["choices"][0]["message"]
+        content = message.get("content")
+
+        # Handle null content
+        if content is None:
+            content = ""
+
+        # Remove XML / reasoning tags
+        content = re.sub(r"<[^>]+>", " ", content, flags=re.DOTALL)
+
+        # Remove duplicated rationale sections
+        content = re.sub(r"rationale\s*:?", " ", content, flags=re.IGNORECASE)
+
+        # Normalize whitespace
+        content = re.sub(r"\s+", " ", content).strip()
+
+        # Emergency extraction for action-selection prompts
+        ACTIONS = ["POST", "COMMENT", "FOLLOW", "NONE", "LIKE", "SHARE", "YES", "NO"]
+
+        upper_content = content.upper()
+
+        found_action = None
+        for action in ACTIONS:
+            if action in upper_content:
+                found_action = action
+                break
+
+        # If model generated chain-of-thought garbage but contains action
+        if found_action is not None and len(content) > 30:
+            content = found_action
+
+        # Fallback if empty
+        if not content:
+            content = "NONE"
+
     except Exception as e:
         return jsonify({
             "error": "bad_response_format",
